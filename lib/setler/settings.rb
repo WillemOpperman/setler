@@ -13,15 +13,6 @@ module Setler
       @defaults = defaults.with_indifferent_access
     end
 
-    if Rails::VERSION::MAJOR == 3
-      attr_accessible :var, :value
-
-      def self.all
-        warn '[DEPRECATED] Setler::Settings#all is deprecated. Please use #all_settings'
-        all_settings
-      end
-    end
-
     # Get and Set variables when the calling method is the variable name
     def self.method_missing(method, *args, &block)
       if respond_to?(method)
@@ -39,7 +30,7 @@ module Setler
     end
 
     def self.[](var)
-      the_setting = thing_scoped.find_by_var(var.to_s)
+      the_setting = thing_scoped.find_by(:var => var.to_s)
       the_setting.present? ? the_setting.value : defaults[var]
     end
 
@@ -48,24 +39,16 @@ module Setler
       # thing_scoped.find_or_create_by_var(method_name[0..-2]) should work but doesnt for some reason
       # When @object is present, thing_scoped sets the where scope for the polymorphic association
       # but the find_or_create_by wasn't using the thing_type and thing_id
-      if Rails::VERSION::MAJOR == 3
-        thing_scoped.find_or_create_by_var_and_thing_type_and_thing_id(
-          var.to_s,
-          @object.try(:class).try(:base_class).try(:to_s),
-          @object.try(:id)
-        ).update_attributes({ :value => value })
-      else
-        thing_scoped.find_or_create_by(
-          var: var.to_s,
-          thing_type: @object.try(:class).try(:base_class).try(:to_s),
-          thing_id: @object.try(:id)
-        ).update_attributes({ :value => value })
-      end
+      thing_scoped.find_or_create_by(
+        var: var.to_s,
+        thing_type: @object.try(:class).try(:base_class).try(:to_s),
+        thing_id: @object.try(:id)
+      ).update_attributes({ :value => value })
     end
 
     def self.destroy(var_name)
       var_name = var_name.to_s
-      if setting = self.find_by_var(var_name)
+      if setting = self.find_by(:var => var_name)
         setting.destroy
         true
       else
@@ -74,7 +57,7 @@ module Setler
     end
 
     def self.all_settings
-      defaults.merge(Hash[thing_scoped.all.collect{ |s| [s.var, s.value] }])
+      defaults.merge(Hash[thing_scoped.collect{ |s| [s.var, s.value] }])
     end
 
     def self.thing_scoped
